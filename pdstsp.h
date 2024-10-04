@@ -15,7 +15,7 @@ typedef std::unordered_map<int, int> MapSol2D;
 typedef std::vector<std::unordered_map<int, int>> MapSol3D;
 typedef std::vector<std::tuple<int, int>> Sol2D;
 typedef std::vector<std::tuple<int, int, int>> Sol3D;
-class Pardo : public Model {
+class PDSTSP : public Model {
 private:
     IloEnv env;
     NumVar2D x;
@@ -34,8 +34,8 @@ private:
     std::vector<int> De;
     std::vector<int> Na;
 public:
-    
-    Pardo() {
+
+    PDSTSP() {
         Instance* instance = Instance::getInstance();
         n = instance->num_nodes;
         std::cout << "num_nodes = " << n << '\n';
@@ -115,7 +115,7 @@ public:
             {
                 if (i == j)
                     continue;
-                name << "x." << i << "." << j ;
+                name << "x." << i << "." << j;
                 x[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
                 name.str("");
             }
@@ -226,7 +226,7 @@ public:
             }
             model.add(sum_out == 1);
         }
-        
+
         //Drone routing consrtaints
         for (int i : D)
         {
@@ -346,7 +346,7 @@ public:
                 if (i == j)
                     continue;
                 model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
-            }           
+            }
         }
 
         //Constraints on the start time of the truck route and drone ﬂights
@@ -402,13 +402,13 @@ public:
         }
 
         model.add(T[n - 1] >= sum_cost);
-        
+
         std::cout << "done" << '\n';
         return model;
     }
 
     Solution run() override {
-        
+
         Param* param = Param::getInstance();
 
         IloModel model = createModel();
@@ -417,7 +417,7 @@ public:
         cplex.setParam(IloCplex::Param::Threads, 1);
         cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
         cplex.setOut(env.getNullStream());
-        
+
         auto start_time = std::chrono::high_resolution_clock::now();
         Solution sol;
         std::cout << "have solve??" << '\n';
@@ -425,7 +425,7 @@ public:
             std::cout << "solve 0" << '\n';
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
-            
+
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
                 std::cout << "optimal" << '\n';
@@ -436,25 +436,25 @@ public:
                 sol.obj = cplex.getObjValue();*/
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
-                
+
                 sol.status = "Feasible";
                 for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
                 sol.obj = cplex.getObjValue();
             }
             else {
-                
+
                 sol.status = "Infeasible";
                 sol.obj = -1;
             }
         }
         else {
-            
+
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
             sol.status = "NoSolution";
         }
-       
+
         return sol;
     }
 

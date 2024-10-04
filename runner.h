@@ -19,7 +19,7 @@ public:
             out << i << '\n';
 
         Param* param = Param::getInstance();
-        std::ofstream log("/home/22800033/conflict_job/sol/P" + std::to_string(param->getProbId()) + "/run_log.csv", std::ios_base::app);
+        std::ofstream log("C:/Users/admin/Downloads/Instances/Sol/run_log.csv", std::ios_base::app);
         log << param->getInstanceName() << ',' << sol.status << ',' << sol.obj << ',' << sol.time << '\n';
     }
 };
