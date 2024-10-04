@@ -2,6 +2,7 @@
 #include "Params.h"
 #include "runner.h"
 #include "pardo.h"
+#include "pdstsp.h"
 
 int main(int argc, char* argv[]) {
     std::string instance_folder = "/home/orlab/repo/quy/conflict_job/set_K/";
@@ -41,7 +42,8 @@ int main(int argc, char* argv[]) {
 
 
     Model* model = nullptr;
-    model = new Pardo();
+    //model = new Pardo();
+    model = new PDSTSP();
     //model->run();
     Runner runner(model);
     runner.run(std::ofstream("C:/Users/admin/Downloads/Instances/Sol"));

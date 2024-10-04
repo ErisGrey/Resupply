@@ -20,11 +20,14 @@ private:
     IloEnv env;
     NumVar2D x;
     NumVar2D r;
+    IloNumVarArray z;
     IloNumVarArray u;
     NumVar2D y;
     IloNumVarArray T;
     IloNumVarArray s;
     IloNumVarArray e;
+    IloNumVar T_max;
+    IloNumVar Td;
     int n;
     std::vector<int> N;
     std::vector<int> D;
@@ -34,7 +37,7 @@ private:
     std::vector<int> De;
     std::vector<int> Na;
 public:
-    
+
     PDSTSP_DR() {
         Instance* instance = Instance::getInstance();
         n = instance->num_nodes;
@@ -100,11 +103,13 @@ public:
         x = NumVar2D(env, n);
         y = NumVar2D(env, n);
         r = NumVar2D(env, n);
+        z = IloNumVarArray(env, n);
         u = IloNumVarArray(env, n);
         T = IloNumVarArray(env, n);
         s = IloNumVarArray(env, n);
         e = IloNumVarArray(env, n);
-
+        T_max = IloNumVar(env);
+        Td = IloNumVar(env);
 
         std::stringstream name;
         // x_ij
@@ -115,7 +120,7 @@ public:
             {
                 if (i == j)
                     continue;
-                name << "x." << i << "." << j ;
+                name << "x." << i << "." << j;
                 x[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
                 name.str("");
             }
@@ -146,6 +151,14 @@ public:
                 name.str("");
             }
         }
+        //z_i
+        for (int i : N)
+        {
+            name << "z." << i;
+            z[i] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
+            name.str("");
+        }
+
 
         //u_i
         for (int i : D0)
@@ -179,236 +192,249 @@ public:
             name.str("");
         }
 
+        //T_max
+        name << "T_max";
+        T_max = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+        name.str("");
+
+        //Td
+        name << "Td";
+        Td = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+        name.str("");
+
     }
     IloModel createModel() {
         Instance* instance = Instance::getInstance();
         Param* param = Param::getInstance();
         IloModel model(env);
-        IloExpr objExpr(env);
-        objExpr += T[n - 1];
-        model.add(IloMinimize(env, objExpr));
 
-        //Truck routing contraints
-        IloExpr sum_s(env);
-        for (int j : N)
-        {
-            sum_s += x[0][j];
-        }
-        model.add(sum_s == 1);
-
-        IloExpr sum_e(env);
-        for (int j : N)
-        {
-            sum_e += x[j][n - 1];
-        }
-        model.add(sum_e == 1);
-
-        for (int j : N)
-        {
-            IloExpr sum_in(env);
-            for (int i : N0)
-            {
-                if (i == j)
-                    continue;
-                sum_in += x[i][j];
-            }
-            model.add(sum_in == 1);
-        }
-
-        for (int i : N)
-        {
-            IloExpr sum_out(env);
-            for (int j : Ne)
-            {
-                if (i == j)
-                    continue;
-                sum_out += x[i][j];
-            }
-            model.add(sum_out == 1);
-        }
+        //Anh swuar chỗ này nhá anh :)))
         
-        //Drone routing consrtaints
-        for (int i : D)
-        {
-            model.add(u[i] <= u[0]);
-        }
+        //IloExpr objExpr(env);
+        //objExpr += T[n - 1];
+        //model.add(IloMinimize(env, objExpr));
 
-        IloExpr drin(env);
-        for (int j : D)
-        {
-            drin += r[0][j];
-        }
-        model.add(drin == u[0]);
+        ////Truck routing contraints
+        //IloExpr sum_s(env);
+        //for (int j : N)
+        //{
+        //    sum_s += x[0][j];
+        //}
+        //model.add(sum_s == 1);
 
-        IloExpr drout(env);
-        for (int i : D)
-        {
-            drout += r[i][n - 1];
-        }
-        model.add(drout == u[0]);
+        //IloExpr sum_e(env);
+        //for (int j : N)
+        //{
+        //    sum_e += x[j][n - 1];
+        //}
+        //model.add(sum_e == 1);
 
-        for (int j : D)
-        {
-            IloExpr sum_ru(env);
-            for (int i : D0)
-            {
-                if (i == j)
-                    continue;
-                sum_ru += r[i][j];
-            }
-            model.add(sum_ru == u[j]);
-            sum_ru.end();
-        }
+        //for (int j : N)
+        //{
+        //    IloExpr sum_in(env);
+        //    for (int i : N0)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        sum_in += x[i][j];
+        //    }
+        //    model.add(sum_in == 1);
+        //}
 
-        for (int i : D)
-        {
-            IloExpr sum_ru(env);
-            for (int j : De)
-            {
-                if (i == j)
-                    continue;
-                sum_ru += r[i][j];
-            }
-            model.add(sum_ru == u[i]);
-            sum_ru.end();
-        }
+        //for (int i : N)
+        //{
+        //    IloExpr sum_out(env);
+        //    for (int j : Ne)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        sum_out += x[i][j];
+        //    }
+        //    model.add(sum_out == 1);
+        //}
 
-        //Drone capacity constraint
-        for (int i : D)
-        {
-            IloExpr sum_order(env);
-            for (int j : N)
-            {
-                sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
-            }
-            model.add(sum_order <= instance->drone_capacity * u[i]);
-        }
+        ////Drone routing consrtaints
+        //for (int i : D)
+        //{
+        //    model.add(u[i] <= u[0]);
+        //}
 
-        //Constraint on loading the orders onto the truck
-        for (int j : N)
-        {
-            IloExpr load_order(env);
-            for (int i : D0)
-            {
-                load_order += y[i][j];
-            }
-            model.add(load_order == 1);
-        }
+        //IloExpr drin(env);
+        //for (int j : D)
+        //{
+        //    drin += r[0][j];
+        //}
+        //model.add(drin == u[0]);
 
-        double M = 99999;
-        //Synchronization and timing constraints
-        for (int j : N)
-        {
-            model.add(T[j] >= instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j]));
-        }
+        //IloExpr drout(env);
+        //for (int i : D)
+        //{
+        //    drout += r[i][n - 1];
+        //}
+        //model.add(drout == u[0]);
 
-        for (int i : D0)
-        {
-            for (int j : N)
-            {
-                if (i == j)
-                    continue;
-                model.add(T[j] >= T[i] - M * (1 - y[i][j]));
-            }
-        }
+        //for (int j : D)
+        //{
+        //    IloExpr sum_ru(env);
+        //    for (int i : D0)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        sum_ru += r[i][j];
+        //    }
+        //    model.add(sum_ru == u[j]);
+        //    sum_ru.end();
+        //}
 
-        for (int i : N0)
-        {
-            for (int j : Ne)
-            {
-                if (i == j)
-                    continue;
-                if (isElementInVector(D, j))
-                    continue;
-                model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
-            }
-        }
+        //for (int i : D)
+        //{
+        //    IloExpr sum_ru(env);
+        //    for (int j : De)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        sum_ru += r[i][j];
+        //    }
+        //    model.add(sum_ru == u[i]);
+        //    sum_ru.end();
+        //}
 
-        for (int i : N0)
-        {
-            for (int j : D)
-            {
-                if (i == j)
-                    continue;
-                model.add(T[j] >= T[i] + instance->time_truck[i][j] + instance->delta * u[j] - M * (1 - x[i][j]));
-            }
-        }
+        ////Drone capacity constraint
+        //for (int i : D)
+        //{
+        //    IloExpr sum_order(env);
+        //    for (int j : N)
+        //    {
+        //        sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
+        //    }
+        //    model.add(sum_order <= instance->drone_capacity * u[i]);
+        //}
 
-        for (int j : D)
-        {
-            model.add(T[j] >= s[j] + instance->time_drone[0][j] + instance->delta - M * (1 - u[j]));
-        }
+        ////Constraint on loading the orders onto the truck
+        //for (int j : N)
+        //{
+        //    IloExpr load_order(env);
+        //    for (int i : D0)
+        //    {
+        //        load_order += y[i][j];
+        //    }
+        //    model.add(load_order == 1);
+        //}
 
-        for (int i : D)
-        {
-            for (int j : D)
-            {
-                if (i == j)
-                    continue;
-                model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
-            }           
-        }
+        //double M = 99999;
+        ////Synchronization and timing constraints
+        //for (int j : N)
+        //{
+        //    model.add(T[j] >= instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j]));
+        //}
 
-        //Constraints on the start time of the truck route and drone ﬂights
-        for (int i : N)
-        {
-            for (int j : D)
-            {
-                model.add(s[j] >= instance->release_time[i] * y[j][i]);
-            }
-        }
+        //for (int i : D0)
+        //{
+        //    for (int j : N)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        model.add(T[j] >= T[i] - M * (1 - y[i][j]));
+        //    }
+        //}
 
-        for (int j : N)
-        {
-            model.add(T[0] >= instance->release_time[j] * y[0][j]);
-        }
+        //for (int i : N0)
+        //{
+        //    for (int j : Ne)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        if (isElementInVector(D, j))
+        //            continue;
+        //        model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
+        //    }
+        //}
 
-        //Computation of wait times and lower bounds for the total delivery time
-        for (int j : D)
-        {
-            for (int i : N0)
-            {
-                if (i == j)
-                    continue;
-                model.add(e[j] >= T[j] - (T[i] + instance->time_truck[i][j]) - M * (1 - x[i][j]));
-            }
-        }
+        //for (int i : N0)
+        //{
+        //    for (int j : D)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        model.add(T[j] >= T[i] + instance->time_truck[i][j] + instance->delta * u[j] - M * (1 - x[i][j]));
+        //    }
+        //}
 
-        for (int j : D)
-        {
-            model.add(e[j] <= M * u[j]);
-        }
+        //for (int j : D)
+        //{
+        //    model.add(T[j] >= s[j] + instance->time_drone[0][j] + instance->delta - M * (1 - u[j]));
+        //}
 
-        for (int i : N)
-        {
-            model.add(T[n - 1] >= T[i] + instance->time_truck[i][n - 1]);
-        }
+        //for (int i : D)
+        //{
+        //    for (int j : D)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
+        //    }
+        //}
 
-        IloExpr sum_cost(env);
-        sum_cost += T[0];
-        for (int i : N0)
-        {
-            for (int j : Ne)
-            {
-                if (i == j)
-                    continue;
-                sum_cost += instance->time_truck[i][j] * x[i][j];
-            }
-        }
+        ////Constraints on the start time of the truck route and drone ﬂights
+        //for (int i : N)
+        //{
+        //    for (int j : D)
+        //    {
+        //        model.add(s[j] >= instance->release_time[i] * y[j][i]);
+        //    }
+        //}
 
-        for (int i : D)
-        {
-            sum_cost += e[i];
-        }
+        //for (int j : N)
+        //{
+        //    model.add(T[0] >= instance->release_time[j] * y[0][j]);
+        //}
 
-        model.add(T[n - 1] >= sum_cost);
-        
-        std::cout << "done" << '\n';
+        ////Computation of wait times and lower bounds for the total delivery time
+        //for (int j : D)
+        //{
+        //    for (int i : N0)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        model.add(e[j] >= T[j] - (T[i] + instance->time_truck[i][j]) - M * (1 - x[i][j]));
+        //    }
+        //}
+
+        //for (int j : D)
+        //{
+        //    model.add(e[j] <= M * u[j]);
+        //}
+
+        //for (int i : N)
+        //{
+        //    model.add(T[n - 1] >= T[i] + instance->time_truck[i][n - 1]);
+        //}
+
+        //IloExpr sum_cost(env);
+        //sum_cost += T[0];
+        //for (int i : N0)
+        //{
+        //    for (int j : Ne)
+        //    {
+        //        if (i == j)
+        //            continue;
+        //        sum_cost += instance->time_truck[i][j] * x[i][j];
+        //    }
+        //}
+
+        //for (int i : D)
+        //{
+        //    sum_cost += e[i];
+        //}
+
+        //model.add(T[n - 1] >= sum_cost);
+
+        //std::cout << "done" << '\n';
         return model;
     }
 
     Solution run() override {
-        
+
         Param* param = Param::getInstance();
 
         IloModel model = createModel();
@@ -417,7 +443,7 @@ public:
         cplex.setParam(IloCplex::Param::Threads, 1);
         cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
         cplex.setOut(env.getNullStream());
-        
+
         auto start_time = std::chrono::high_resolution_clock::now();
         Solution sol;
         std::cout << "have solve??" << '\n';
@@ -425,7 +451,7 @@ public:
             std::cout << "solve 0" << '\n';
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
-            
+
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
                 std::cout << "optimal" << '\n';
@@ -436,25 +462,25 @@ public:
                 sol.obj = cplex.getObjValue();*/
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
-                
+
                 sol.status = "Feasible";
                 for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
                 sol.obj = cplex.getObjValue();
             }
             else {
-                
+
                 sol.status = "Infeasible";
                 sol.obj = -1;
             }
         }
         else {
-            
+
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
             sol.status = "NoSolution";
         }
-       
+
         return sol;
     }
 

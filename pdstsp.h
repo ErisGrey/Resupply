@@ -1,4 +1,4 @@
-﻿#pragma once
+﻿
 #include "Model.h"
 #include "Params.h"
 #include <algorithm>
@@ -17,166 +17,149 @@ typedef std::vector<std::tuple<int, int>> Sol2D;
 typedef std::vector<std::tuple<int, int, int>> Sol3D;
 class PDSTSP : public Model {
 private:
+    //Variable
     IloEnv env;
-    NumVar2D x;
-    NumVar2D r;
-    IloNumVarArray u;
-    NumVar2D y;
-    IloNumVarArray T;
-    IloNumVarArray s;
-    IloNumVarArray e;
-    int n;
-    std::vector<int> N;
-    std::vector<int> D;
-    std::vector<int> N0;
-    std::vector<int> Ne;
-    std::vector<int> D0;
-    std::vector<int> De;
-    std::vector<int> Na;
-public:
+    NumVar3D x;
+    NumVar3D h;
+    IloNumVarArray z;
+    IloNumVarArray a;
 
+
+    //Paramter
+    int numNode;
+    int numUAV;
+    std::vector<int> N;
+    std::vector<int> C;
+    std::vector<int> truckOnly;
+    std::vector<int> freeCustomers;
+    std::vector<int> freeCustomers0;
+    std::vector<int> arr;
+    std::vector<int> a_inv;
+    std::vector<int> new_freeCustomers;
+public:
     PDSTSP() {
         Instance* instance = Instance::getInstance();
-        n = instance->num_nodes;
-        std::cout << "num_nodes = " << n << '\n';
-        for (int i = 1; i < n - 1; i++)
-        {
+        numNode = instance->num_nodes - 1; //not include depot (n + 1)
+        numUAV = 1;
+        std::cout << "num_nodes = " << numNode << '\n';
+
+        /*  SET -------------------------------- */
+        for (int i = 0; i < instance->num_nodes - 1; ++i)
             N.push_back(i);
-            N0.push_back(i);
-            Ne.push_back(i);
-            Na.push_back(i);
-        }
-        N0.push_back(0);
-        Ne.push_back(n - 1);
-        Na.push_back(0);
-        Na.push_back(n - 1);
-
-
-        for (int i : instance->freemode)
+        for (int i = 1; i < instance->num_nodes - 1; ++i)
+            C.push_back(i);
+        truckOnly = instance->truckonly;
+        freeCustomers = instance->freemode;
+        freeCustomers.pop_back();
+        freeCustomers0 = instance->freemode;
+        freeCustomers0.insert(freeCustomers0.begin(), 0);
+        freeCustomers0.pop_back();
+        
+        for (int i : freeCustomers0)
         {
-            D.push_back(i);
-            D0.push_back(i);
-            De.push_back(i);
+            std::cout << i << " ";
         }
-        D0.push_back(0);
-        De.push_back(n - 1);
-
-        /*std::cout << "N: ";
-        for (auto i : N)
-            std::cout << i << " ";
         std::cout << '\n';
 
-        std::cout << "N0: ";
-        for (auto i : N0)
-            std::cout << i << " ";
-        std::cout << '\n';
+        arr.resize(instance->num_nodes, -1);
+        arr[0] = 0;
+        int tg1;
+        for (int i = 1; i < instance->num_nodes; i++)
+        {
+            arr[i] = i;
+        }
+        for (int i = 1; i < instance->num_nodes; i++)
+        {
+            if (instance->tdrone_all(i) > 1000) continue;
+            for (int j = i + 1; j < instance->num_nodes; j++) {
+                if (instance->tdrone_all(j) > 1000) continue;
+                if (instance->tdrone_all(arr[i]) < instance->tdrone_all(arr[j])) {
+                    tg1 = arr[i];
+                    arr[i] = arr[j];
+                    arr[j] = tg1;
+                }
+            }
+        }
 
-        std::cout << "Ne: ";
-        for (auto i : Ne)
-            std::cout << i << " ";
-        std::cout << '\n';
+        for (int i = 1; i < instance->num_nodes; i++)
+        {
+            std::cout << arr[i] << std::endl;
+        }
 
-        std::cout << "Na: ";
-        for (auto i : Na)
-            std::cout << i << " ";
-        std::cout << '\n';
+        a_inv.resize(numNode, 0);
 
-        std::cout << "D: ";
-        for (auto i : D)
-            std::cout << i << " ";
-        std::cout << '\n';
+        // Populate the inverse vector
+        for (int i = 0; i < numNode; ++i) {
+            a_inv[arr[i]] = i;
+        }
 
-        std::cout << "D0: ";
-        for (auto i : D0)
-            std::cout << i << " ";
-        std::cout << '\n';
+        // Output the inverse vector
+        std::cout << "a^-1 = [ ";
+        for (int i = 0; i < numNode; ++i) {
+            std::cout << a_inv[i] << " ";
+        }
+        std::cout << "]" << std::endl;
 
-        std::cout << "De: ";
-        for (auto i : De)
-            std::cout << i << " ";
-        std::cout << '\n';*/
+        for (int j : freeCustomers)
+        {
+            new_freeCustomers.push_back(a_inv[j]);
+        }
 
         env = IloEnv();
-        x = NumVar2D(env, n);
-        y = NumVar2D(env, n);
-        r = NumVar2D(env, n);
-        u = IloNumVarArray(env, n);
-        T = IloNumVarArray(env, n);
-        s = IloNumVarArray(env, n);
-        e = IloNumVarArray(env, n);
+        x = NumVar3D(env, numNode); // x_ijk
+        h = NumVar3D(env, numNode); // h_ijk
+        a = IloNumVarArray(env, numNode);
+        z = IloNumVarArray(env, numNode);
+
 
 
         std::stringstream name;
-        // x_ij
-        for (int i : N0)
+        // x_ijk
+        for (int i : N)
         {
-            x[i] = IloNumVarArray(env, n);
-            for (int j : Ne)
-            {
-                if (i == j)
-                    continue;
-                name << "x." << i << "." << j;
-                x[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
-                name.str("");
+            x[i] = NumVar2D(env, numNode);
+            for (int j : N) {
+                if (j == i) continue;
+                x[i][j] = IloNumVarArray(env, numNode);
+                for (int k : N) {
+                    name << "x." << i << "." << j << "." << k;
+                    x[i][j][k] = IloNumVar(env, 0, 1, ILOFLOAT, name.str().c_str());
+                    name.str("");
+                }
             }
         }
 
-        //y_ij
-        for (int i : D0)
+
+        // h_ijk
+        for (int i : N)
         {
-            y[i] = IloNumVarArray(env, n);
-            for (int j : N)
-            {
-                name << "y." << i << "." << j;
-                y[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
-                name.str("");
+            h[i] = NumVar2D(env, numNode);
+            for (int j : N) {
+                if (j == i) continue;
+                h[i][j] = IloNumVarArray(env, numNode);
+                for (int k : N) {
+                    name << "h." << i << "." << j << "." << k;
+                    h[i][j][k] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+                    name.str("");
+                }
             }
         }
 
-        //r_ij
-        for (int i : D0)
+        //a_i
+        for (int i : new_freeCustomers)
         {
-            r[i] = IloNumVarArray(env, n);
-            for (int j : De)
-            {
-                if (i == j)
-                    continue;
-                name << "r." << i << "." << j;
-                r[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
-                name.str("");
-            }
-        }
-
-        //u_i
-        for (int i : D0)
-        {
-            name << "u." << i;
-            u[i] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
+            name << "a." << i;
+            a[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
             name.str("");
         }
 
-        //T_i
-        for (int i : Na)
+        //z_i
+        for (int i : C)
         {
-            name << "T." << i;
-            T[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+            name << "z." << i;
+            z[i] = IloNumVar(env, 0, 1, ILOFLOAT, name.str().c_str());
             name.str("");
-        }
 
-        //s_i
-        for (int i : D)
-        {
-            name << "s." << i;
-            s[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
-            name.str("");
-        }
-
-        //e_i
-        for (int i : D)
-        {
-            name << "e." << i;
-            e[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
-            name.str("");
         }
 
     }
@@ -184,226 +167,253 @@ public:
         Instance* instance = Instance::getInstance();
         Param* param = Param::getInstance();
         IloModel model(env);
-        IloExpr objExpr(env);
-        objExpr += T[n - 1];
-        model.add(IloMinimize(env, objExpr));
+        IloExpr exprSolution(env);
+        for (int k : N) {
+            for (int i : N) {
+                for (int j : N) {
+                    if (j == i) continue;
+                    exprSolution += h[i][j][k] * instance->time_truck[arr[i]][arr[j]];
+                }
+            }
+        }
 
+        for (int i : new_freeCustomers)
+        {
+            exprSolution += a[i] * instance->tdrone_all(arr[i]);
+        }
+
+        for (int i : new_freeCustomers)
+        {
+            exprSolution -= (1 - z[i]) * instance->time_drone[0][arr[i]];
+        }
+
+        model.add(IloMinimize(env, exprSolution));
+        // CONSTRAINT -------------------------------------
         //Truck routing contraints
-        IloExpr sum_s(env);
-        for (int j : N)
-        {
-            sum_s += x[0][j];
+        for (int j : truckOnly) {
+            model.add(z[a_inv[j]] == 1);
         }
-        model.add(sum_s == 1);
-
-        IloExpr sum_e(env);
-        for (int j : N)
+        //truck
+        for (int i : C)
         {
-            sum_e += x[j][n - 1];
-        }
-        model.add(sum_e == 1);
-
-        for (int j : N)
-        {
-            IloExpr sum_in(env);
-            for (int i : N0)
+            for (int k : C)
             {
-                if (i == j)
-                    continue;
-                sum_in += x[i][j];
+                IloExpr condij(env);
+                for (int j : N)
+                {
+                    if (j == i) continue;
+                    condij += x[i][j][k] - x[j][i][k - 1];
+                }
+                model.add(condij == 0);
+                condij.end();
             }
-            model.add(sum_in == 1);
         }
+
+        for (int i : C) {
+            for (int j : C) {
+                if (i == j) continue;
+                model.add(x[i][j][0] == 0);
+            }
+        }
+
+        for (int i : C)
+        {
+            model.add(x[i][0][0] == 0);
+        }
+
+
+
+        IloExpr sums(env);
+        for (int j : C) {
+            sums += x[0][j][0];
+        }
+        model.add(sums == 1);
+        sums.end();
+
+
+        IloExpr sume(env);
+        for (int i : C) {
+            for (int k : C) {
+                sume += x[i][0][k];
+
+            }
+        }
+        model.add(sume == 1);
+        sume.end();
+
+
+        for (int k : C) {
+            for (int i : C) {
+                model.add(x[0][i][k] == 0);
+            }
+        }
+
+
+
+        for (int j : C)
+        {
+            IloExpr sumj(env);
+            for (int i : N) {
+                if (i == j) continue;
+                for (int k : N) {
+                    sumj += x[i][j][k];
+                }
+            }
+            model.add(sumj - z[j] == 0);
+            sumj.end();
+        }
+
+
+
+        for (int i : C)
+        {
+            IloExpr sumi(env);
+            for (int j : N) {
+                if (i == j) continue;
+                for (int k : N) {
+                    sumi += x[i][j][k];
+                }
+            }
+            model.add(sumi - z[i] == 0);
+            sumi.end();
+        }
+
+
+        for (int k : N)
+        {
+            IloExpr condik(env);
+            for (int i : C)
+            {
+                condik += z[i];
+            }
+
+            IloExpr condiij(env);
+            for (int i : N)
+            {
+                for (int j : N)
+                {
+                    if (i == j) continue;
+                    condiij += x[i][j][k];
+                }
+            }
+
+            model.add((condik - k) * 1.0 / (numNode - 1) <= condiij);
+            condik.end();
+            condiij.end();
+        }
+
+
+
 
         for (int i : N)
         {
-            IloExpr sum_out(env);
-            for (int j : Ne)
+            for (int j : C)
             {
-                if (i == j)
-                    continue;
-                sum_out += x[i][j];
-            }
-            model.add(sum_out == 1);
-        }
-
-        //Drone routing consrtaints
-        for (int i : D)
-        {
-            model.add(u[i] <= u[0]);
-        }
-
-        IloExpr drin(env);
-        for (int j : D)
-        {
-            drin += r[0][j];
-        }
-        model.add(drin == u[0]);
-
-        IloExpr drout(env);
-        for (int i : D)
-        {
-            drout += r[i][n - 1];
-        }
-        model.add(drout == u[0]);
-
-        for (int j : D)
-        {
-            IloExpr sum_ru(env);
-            for (int i : D0)
-            {
-                if (i == j)
-                    continue;
-                sum_ru += r[i][j];
-            }
-            model.add(sum_ru == u[j]);
-            sum_ru.end();
-        }
-
-        for (int i : D)
-        {
-            IloExpr sum_ru(env);
-            for (int j : De)
-            {
-                if (i == j)
-                    continue;
-                sum_ru += r[i][j];
-            }
-            model.add(sum_ru == u[i]);
-            sum_ru.end();
-        }
-
-        //Drone capacity constraint
-        for (int i : D)
-        {
-            IloExpr sum_order(env);
-            for (int j : N)
-            {
-                sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
-            }
-            model.add(sum_order <= instance->drone_capacity * u[i]);
-        }
-
-        //Constraint on loading the orders onto the truck
-        for (int j : N)
-        {
-            IloExpr load_order(env);
-            for (int i : D0)
-            {
-                load_order += y[i][j];
-            }
-            model.add(load_order == 1);
-        }
-
-        double M = 99999;
-        //Synchronization and timing constraints
-        for (int j : N)
-        {
-            model.add(T[j] >= instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j]));
-        }
-
-        for (int i : D0)
-        {
-            for (int j : N)
-            {
-                if (i == j)
-                    continue;
-                model.add(T[j] >= T[i] - M * (1 - y[i][j]));
+                if (i == j) continue;
+                for (int k : N)
+                {
+                    model.add(x[i][j][k] <= h[i][j][k]);
+                    model.add(h[i][j][k] <= x[i][j][k] * (numNode - k));
+                }
             }
         }
 
-        for (int i : N0)
+        for (int i : C)
         {
-            for (int j : Ne)
+            for (int k : N)
             {
-                if (i == j)
-                    continue;
-                if (isElementInVector(D, j))
-                    continue;
-                model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
+                model.add(h[i][0][k] == 0);
             }
         }
 
-        for (int i : N0)
-        {
-            for (int j : D)
-            {
-                if (i == j)
-                    continue;
-                model.add(T[j] >= T[i] + instance->time_truck[i][j] + instance->delta * u[j] - M * (1 - x[i][j]));
-            }
-        }
 
-        for (int j : D)
+        IloExpr numEd(env);
+        for (int i : C)
         {
-            model.add(T[j] >= s[j] + instance->time_drone[0][j] + instance->delta - M * (1 - u[j]));
+            numEd += z[i];
         }
-
-        for (int i : D)
-        {
-            for (int j : D)
-            {
-                if (i == j)
-                    continue;
-                model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
-            }
-        }
-
-        //Constraints on the start time of the truck route and drone ﬂights
+        IloExpr condi1(env);
         for (int i : N)
         {
-            for (int j : D)
+
+            for (int j : C)
             {
-                model.add(s[j] >= instance->release_time[i] * y[j][i]);
+                if (i == j) continue;
+                condi1 += h[i][j][0];
+            }
+        }
+        model.add(condi1 == numEd);
+        condi1.end();
+        numEd.end();
+
+
+        for (int k : C)
+        {
+            IloExpr condi1(env);
+            IloExpr condi2(env);
+            IloExpr condi3(env);
+            IloExpr numEd(env);
+            for (int i : C)
+            {
+                numEd += z[i];
+            }
+
+            for (int i : N)
+            {
+                for (int j : C)
+                {
+                    if (i == j) continue;
+                    condi1 += h[i][j][k];
+                }
+            }
+
+            for (int i : N)
+            {
+                for (int j : C)
+                {
+                    if (i == j) continue;
+                    condi3 += h[i][j][k - 1];
+                }
+            }
+
+            model.add(condi1 >= condi3 - 1);
+            condi1.end();
+            condi2.end();
+            condi3.end();
+            numEd.end();
+        }
+
+
+        //drone
+        if (numUAV >= 1)
+        {
+            for (int j : new_freeCustomers)
+            {
+
+                model.add(1 - z[j] <= a[j]);
+                model.add(a[j] <= (1 + j * 1.0 / numUAV) * (1 - z[j]));
+            }
+
+            for (int j : new_freeCustomers)
+            {
+                IloExpr condij(env);
+                for (int i = 1; i <= j; i++)
+                {
+                    condij += z[i];
+                }
+                model.add((j - condij) * 1.0 / numUAV - (j * 1.0 / numUAV) * z[j] <= a[j]);
+
+                condij.end();
             }
         }
 
-        for (int j : N)
+        else
         {
-            model.add(T[0] >= instance->release_time[j] * y[0][j]);
-        }
-
-        //Computation of wait times and lower bounds for the total delivery time
-        for (int j : D)
-        {
-            for (int i : N0)
+            for (int i : C)
             {
-                if (i == j)
-                    continue;
-                model.add(e[j] >= T[j] - (T[i] + instance->time_truck[i][j]) - M * (1 - x[i][j]));
+                model.add(z[i] == 1);
             }
         }
-
-        for (int j : D)
-        {
-            model.add(e[j] <= M * u[j]);
-        }
-
-        for (int i : N)
-        {
-            model.add(T[n - 1] >= T[i] + instance->time_truck[i][n - 1]);
-        }
-
-        IloExpr sum_cost(env);
-        sum_cost += T[0];
-        for (int i : N0)
-        {
-            for (int j : Ne)
-            {
-                if (i == j)
-                    continue;
-                sum_cost += instance->time_truck[i][j] * x[i][j];
-            }
-        }
-
-        for (int i : D)
-        {
-            sum_cost += e[i];
-        }
-
-        model.add(T[n - 1] >= sum_cost);
-
-        std::cout << "done" << '\n';
         return model;
     }
 
@@ -438,8 +448,8 @@ public:
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
 
                 sol.status = "Feasible";
-                for (int i = 0; i < s.getSize(); i++)
-                    sol.st.push_back(cplex.getValue(s[i]));
+                /*for (int i = 0; i < s.getSize(); i++)
+                    sol.st.push_back(cplex.getValue(s[i]));*/
                 sol.obj = cplex.getObjValue();
             }
             else {

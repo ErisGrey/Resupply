@@ -172,6 +172,12 @@ public:
         std::cout << '\n';
 
     }
+
+    double tdrone_all(int i)
+    {
+        return 2 * time_drone[0][i];
+    }
+
     /*int getNbJob() { return nb_job; }
     int getNbMachine() { return nb_machine; }
     int getNbConflict() { return nb_conflict; }
@@ -188,6 +194,7 @@ public:
         return conflicts;
     }*/
 };
+
 
 Instance* Instance::singleton_ = nullptr;;
 Instance* Instance::getInstance(const std::string input = "", const std::string param = "")
