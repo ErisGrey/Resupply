@@ -210,226 +210,296 @@ public:
 
         //Anh swuar chỗ này nhá anh :)))
         
-        //IloExpr objExpr(env);
-        //objExpr += T[n - 1];
-        //model.add(IloMinimize(env, objExpr));
+        IloExpr objExpr(env);
+        objExpr += T_max;
+        model.add(IloMinimize(env, objExpr));
 
-        ////Truck routing contraints
-        //IloExpr sum_s(env);
-        //for (int j : N)
-        //{
-        //    sum_s += x[0][j];
-        //}
-        //model.add(sum_s == 1);
+        //Makespan of whole tour
+        model.add(T_max >= T[n - 1]);
+        model.add(T_max >= Td);
 
-        //IloExpr sum_e(env);
-        //for (int j : N)
-        //{
-        //    sum_e += x[j][n - 1];
-        //}
-        //model.add(sum_e == 1);
+        //Truck routing contraints
+        IloExpr sum_s(env);
+        for (int j : N)
+        {
+            sum_s += x[0][j];
+        }
+        model.add(sum_s <= 1);
 
-        //for (int j : N)
-        //{
-        //    IloExpr sum_in(env);
-        //    for (int i : N0)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        sum_in += x[i][j];
-        //    }
-        //    model.add(sum_in == 1);
-        //}
+        IloExpr sum_e(env);
+        for (int j : N)
+        {
+            sum_e += x[j][n - 1];
+        }
+        model.add(sum_e <= 1);
 
-        //for (int i : N)
-        //{
-        //    IloExpr sum_out(env);
-        //    for (int j : Ne)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        sum_out += x[i][j];
-        //    }
-        //    model.add(sum_out == 1);
-        //}
+        model.add(sum_s == sum_e);
 
-        ////Drone routing consrtaints
-        //for (int i : D)
-        //{
-        //    model.add(u[i] <= u[0]);
-        //}
+        for (int j : N)
+        {
+            IloExpr sum_in(env);
+            for (int i : N0)
+            {
+                if (i == j)
+                    continue;
+                sum_in += x[i][j];
+            }
+            
+            IloExpr sum_out(env);
+            for (int i : Ne)
+            {
+                if (i == j)
+                    continue;
+                sum_out += x[j][i];
+            }
 
-        //IloExpr drin(env);
-        //for (int j : D)
-        //{
-        //    drin += r[0][j];
-        //}
-        //model.add(drin == u[0]);
+            model.add(sum_in == sum_out);
+            model.add(sum_in == z[j]);
+        }
 
-        //IloExpr drout(env);
-        //for (int i : D)
-        //{
-        //    drout += r[i][n - 1];
-        //}
-        //model.add(drout == u[0]);
+        //Drone routing consrtaints
+        for (int i : D)
+        {
+            model.add(u[i] <= u[0]);
+        }
 
-        //for (int j : D)
-        //{
-        //    IloExpr sum_ru(env);
-        //    for (int i : D0)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        sum_ru += r[i][j];
-        //    }
-        //    model.add(sum_ru == u[j]);
-        //    sum_ru.end();
-        //}
+        IloExpr drin(env);
+        for (int j : D)
+        {
+            drin += r[0][j];
+        }
+        model.add(drin == 1);
 
-        //for (int i : D)
-        //{
-        //    IloExpr sum_ru(env);
-        //    for (int j : De)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        sum_ru += r[i][j];
-        //    }
-        //    model.add(sum_ru == u[i]);
-        //    sum_ru.end();
-        //}
+        IloExpr drout(env);
+        for (int i : D)
+        {
+            drout += r[i][n - 1];
+        }
+        model.add(drout == 1);
 
-        ////Drone capacity constraint
-        //for (int i : D)
-        //{
-        //    IloExpr sum_order(env);
-        //    for (int j : N)
-        //    {
-        //        sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
-        //    }
-        //    model.add(sum_order <= instance->drone_capacity * u[i]);
-        //}
+        model.add(drin == drout);
+        drin.end();
+        drout.end();
+        for (int j : D)
+        {
+            model.add(r[0][j] <= u[j] + (1 - z[j]));
+            model.add(u[j] <= z[j]);
+        }
 
-        ////Constraint on loading the orders onto the truck
-        //for (int j : N)
-        //{
-        //    IloExpr load_order(env);
-        //    for (int i : D0)
-        //    {
-        //        load_order += y[i][j];
-        //    }
-        //    model.add(load_order == 1);
-        //}
+        for (int j : D)
+        {
+            IloExpr sum_drone_degree(env);
+            for (int i : D0)
+            {
+                if (i == j)
+                    continue;
+                sum_drone_degree += r[i][j];
+            }
+            model.add(sum_drone_degree == u[j] + 1 - z[j]);
+            sum_drone_degree.end();
+        }
 
-        //double M = 99999;
-        ////Synchronization and timing constraints
-        //for (int j : N)
-        //{
-        //    model.add(T[j] >= instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j]));
-        //}
+        for (int j : D)
+        {
+            IloExpr sum_drone_in(env);
+            for (int i : D0)
+            {
+                if (i == j)
+                    continue;
+                sum_drone_in += r[i][j];
+            }
 
-        //for (int i : D0)
-        //{
-        //    for (int j : N)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        model.add(T[j] >= T[i] - M * (1 - y[i][j]));
-        //    }
-        //}
+            IloExpr sum_drone_out(env);
+            for (int i : De)
+            {
+                if (i == j)
+                    continue;
+                sum_drone_out += r[j][i];
+            }
 
-        //for (int i : N0)
-        //{
-        //    for (int j : Ne)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        if (isElementInVector(D, j))
-        //            continue;
-        //        model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
-        //    }
-        //}
+            model.add(sum_drone_in == sum_drone_out);
+        }
 
-        //for (int i : N0)
-        //{
-        //    for (int j : D)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        model.add(T[j] >= T[i] + instance->time_truck[i][j] + instance->delta * u[j] - M * (1 - x[i][j]));
-        //    }
-        //}
+        for (int i : D)
+        {
+            IloExpr sum_drone_degree(env);
+            for (int j : De)
+            {
+                if (i == j)
+                    continue;
+                sum_drone_degree += r[i][j];
+            }
+            model.add(sum_drone_degree == u[i] + 1 - z[i]);
+            sum_drone_degree.end();
+        }
 
-        //for (int j : D)
-        //{
-        //    model.add(T[j] >= s[j] + instance->time_drone[0][j] + instance->delta - M * (1 - u[j]));
-        //}
+        //Drone capacity constraint
+        for (int i : D)
+        {
+            IloExpr sum_order(env);
+            for (int j : N)
+            {
+                sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
+            }
+            model.add(sum_order <= instance->drone_capacity * u[i]);
+            sum_order.end();
 
-        //for (int i : D)
-        //{
-        //    for (int j : D)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
-        //    }
-        //}
+            model.add((1 - z[i]) * 1 <= instance->drone_capacity);
+        }
+        double M = 9999;
+        //Constraint on loading the orders onto the truck
+        for (int j : N)
+        {
+            IloExpr load_order(env);
+            for (int i : D0)
+            {
+                load_order += y[i][j];
+            }
+            model.add(load_order == z[j]);
+            load_order.end();
+        }
 
-        ////Constraints on the start time of the truck route and drone ﬂights
-        //for (int i : N)
-        //{
-        //    for (int j : D)
-        //    {
-        //        model.add(s[j] >= instance->release_time[i] * y[j][i]);
-        //    }
-        //}
+        for (int j : D)
+        {
+            IloExpr load_order(env);
+            for (int i : N)
+            {
+                load_order += y[j][i];
+            }
 
-        //for (int j : N)
-        //{
-        //    model.add(T[0] >= instance->release_time[j] * y[0][j]);
-        //}
+            model.add(load_order <= M * z[j]);
+        }
 
-        ////Computation of wait times and lower bounds for the total delivery time
-        //for (int j : D)
-        //{
-        //    for (int i : N0)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        model.add(e[j] >= T[j] - (T[i] + instance->time_truck[i][j]) - M * (1 - x[i][j]));
-        //    }
-        //}
+        
+        //Synchronization and timing constraints
+        for (int j : N)
+        {
+            model.add(T[j] >= (instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j])) * z[j]);
+        }
 
-        //for (int j : D)
-        //{
-        //    model.add(e[j] <= M * u[j]);
-        //}
+        for (int i : D0)
+        {
+            for (int j : N)
+            {
+                if (i == j)
+                    continue;
+                model.add(T[j] >= T[i] - M * (1 - y[i][j]));
+            }
+        }
 
-        //for (int i : N)
-        //{
-        //    model.add(T[n - 1] >= T[i] + instance->time_truck[i][n - 1]);
-        //}
+        for (int i : N0)
+        {
+            for (int j : D)
+            {
+                if (i == j)
+                    continue;
+                model.add(T[j] >= T[i] + instance->time_truck[i][j] + instance->delta * u[j] - M * (1 - x[i][j]));
+            }
+        }
 
-        //IloExpr sum_cost(env);
-        //sum_cost += T[0];
-        //for (int i : N0)
-        //{
-        //    for (int j : Ne)
-        //    {
-        //        if (i == j)
-        //            continue;
-        //        sum_cost += instance->time_truck[i][j] * x[i][j];
-        //    }
-        //}
+        for (int i : N0)
+        {
+            for (int j : Ne)
+            {
+                if (i == j)
+                    continue;
+                if (isElementInVector(D, j))
+                    continue;
+                model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
+            }
+        }
 
-        //for (int i : D)
-        //{
-        //    sum_cost += e[i];
-        //}
+        for (int j : D)
+        {
+            model.add(T[j] >= s[j] + (instance->time_drone[0][j] + instance->delta) * z[j] - M * (1 - u[j]));
+        }
 
-        //model.add(T[n - 1] >= sum_cost);
+        for (int i : D)
+        {
+            for (int j : D)
+            {
+                if (i == j)
+                    continue;
+                model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
+            }
+        }
 
-        //std::cout << "done" << '\n';
+        for (int i : D)
+        {
+            model.add(T[i] <= M * z[i]);
+        }
+
+        for (int i : D)
+        {
+            for (int j : D)
+            {
+                if (i == j)
+                    continue;
+                model.add(s[j] >= s[i] + 2 * instance->time_drone[0][i] + instance->delta * u[i] - M * (1 - r[i][j]) - M * z[i]);
+            }
+        }
+
+
+        //Constraints on the start time of the truck route and drone ﬂights
+        for (int i : N)
+        {
+            for (int j : D)
+            {
+                model.add(s[j] >= instance->release_time[i] * y[j][i] + instance->release_time[j] * (1 - z[j]));
+            }
+        }
+
+        for (int j : N)
+        {
+            model.add(T[0] >= instance->release_time[j] * y[0][j]);
+        }
+
+        //Computation of wait times and lower bounds for the total delivery time
+        for (int j : D)
+        {
+            for (int i : N0)
+            {
+                if (i == j)
+                    continue;
+                model.add(e[j] >= T[j] - (T[i] + instance->time_truck[i][j]) - M * (1 - x[i][j]));
+            }
+        }
+
+        for (int j : D)
+        {
+            model.add(e[j] <= M * u[j]);
+        }
+
+        for (int i : N)
+        {
+            model.add(T[n - 1] >= T[i] + instance->time_truck[i][n - 1] - M * (1 - z[i]));
+        }
+
+        IloExpr sum_cost(env);
+        sum_cost += T[0];
+        for (int i : N0)
+        {
+            for (int j : Ne)
+            {
+                if (i == j)
+                    continue;
+                sum_cost += instance->time_truck[i][j] * x[i][j];
+            }
+        }
+
+        for (int i : D)
+        {
+            sum_cost += e[i];
+        }
+
+        model.add(T[n - 1] >= sum_cost);
+
+        for (int i : D)
+        {
+            model.add(Td >= s[i] + 2 * instance->time_drone[0][i] + instance->delta * z[i] - M * (1 - r[i][n - 1]));
+        }
+
+        std::cout << "done" << '\n';
         return model;
     }
 
@@ -439,10 +509,11 @@ public:
 
         IloModel model = createModel();
         IloCplex cplex(model);
-        cplex.setParam(IloCplex::Param::TimeLimit, param->getTimeLimit()); // Set a time limit if needed
+
+        //cplex.setParam(IloCplex::Param::TimeLimit, 10); // Set a time limit if needed
         cplex.setParam(IloCplex::Param::Threads, 1);
-        cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
-        cplex.setOut(env.getNullStream());
+        //  cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
+        //cplex.setOut(env.getNullStream());
 
         auto start_time = std::chrono::high_resolution_clock::now();
         Solution sol;
@@ -451,22 +522,109 @@ public:
             std::cout << "solve 0" << '\n';
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
+            std::cout << cplex.getObjValue() << '\n';
+            sol.obj = cplex.getObjValue(); \
 
+
+            std::vector<std::vector<int>> x_sol(n, std::vector<int>(n, 0));
+             for (int i : D)
+             {
+                 if (cplex.getValue(u[i]) >= 0.5)
+                     std::cout << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
+             }
+             std::cout << '\n';
+
+             for (int i : D)
+             {
+                 if (cplex.getValue(e[i]) >= 0.5)
+                     std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
+             }
+             std::cout << '\n';
+
+             for (int i : Na)
+             {
+                 std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
+             }
+            float sum = cplex.getValue(T[0]);
+            std::cout << "sum = " << sum << "\n";
+            std::vector<int> tour;
+            int current = 0;   // start from point 0
+
+            for (int i : N0)
+            {
+                for (int j : Ne)
+                {
+                    if (i == j) continue;
+                    if (cplex.getValue(x[i][j]) >= 0.5)
+                    {
+                        //sum += time_truck[i][j];
+                        //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                        std::cout << i << " " << j << std::endl;
+                        x_sol[i][j] = 1;
+                    }
+
+                }
+            }
+
+            tour.push_back(current);
+
+            while (true) {
+                int next_point = -1;
+                for (int j = 0; j < n; j++) {
+                    if (x_sol[current][j] == 1) {  // if there's a tour from current to j
+                        next_point = j;
+                        break;
+                    }
+                }
+
+                if (next_point == -1) break;  // no next point, end the tour
+
+                tour.push_back(next_point);
+                current = next_point;  // move to the next point
+
+                if (current == n - 1) break;  // if we've reached the last point, stop
+            }
+
+            // Output the tour
+            std::cout << "Truck tour: ";
+            for (int node : tour) {
+                if (node == n - 1)
+                    std::cout << 0 << " ";
+                else
+                    std::cout << node << " ";
+            }
+            std::cout << std::endl;
+            std::cout << "Drone tour: ";
+            for (int i : D0)
+            {
+                for (int j : De)
+                {
+                    if (i == j) continue;
+                    if (cplex.getValue(r[i][j]) >= 0.5)
+                    {
+                        //sum += time_truck[i][j];
+                        //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                        std::cout << "r[" << i << "][" << j << "] = " << cplex.getValue(r[i][j]) << std::endl;
+                        
+                    }
+
+                }
+            }
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
                 std::cout << "optimal" << '\n';
                 std::cout << cplex.getObjValue() << '\n';
-                sol.obj = cplex.getObjValue();
-                /*for (int i = 0; i < s.getSize(); i++)
-                    sol.st.push_back(cplex.getValue(s[i]));
-                sol.obj = cplex.getObjValue();*/
+                sol.obj = cplex.getObjValue(); \
+
+
+                
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
 
                 sol.status = "Feasible";
-                for (int i = 0; i < s.getSize(); i++)
+               /* for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
-                sol.obj = cplex.getObjValue();
+                sol.obj = cplex.getObjValue();*/
             }
             else {
 

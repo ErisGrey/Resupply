@@ -3,7 +3,7 @@
 #include "runner.h"
 #include "pardo.h"
 #include "pdstsp.h"
-
+#include "pdstsp_dr.h"
 int main(int argc, char* argv[]) {
     std::string instance_folder = "/home/orlab/repo/quy/conflict_job/set_K/";
     std::string model_name = "TIF";
@@ -43,7 +43,9 @@ int main(int argc, char* argv[]) {
 
     Model* model = nullptr;
     //model = new Pardo();
-    model = new PDSTSP();
+    //model = new PDSTSP();
+    
+    model = new PDSTSP_DR();
     //model->run();
     Runner runner(model);
     runner.run(std::ofstream("C:/Users/admin/Downloads/Instances/Sol"));

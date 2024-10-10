@@ -15,7 +15,7 @@ typedef std::unordered_map<int, int> MapSol2D;
 typedef std::vector<std::unordered_map<int, int>> MapSol3D;
 typedef std::vector<std::tuple<int, int>> Sol2D;
 typedef std::vector<std::tuple<int, int, int>> Sol3D;
-class PDSTSP_DR : public Model {
+class Pardo : public Model {
 private:
     IloEnv env;
     NumVar2D x;
@@ -35,7 +35,7 @@ private:
     std::vector<int> Na;
 public:
     
-    PDSTSP_DR() {
+    Pardo() {
         Instance* instance = Instance::getInstance();
         n = instance->num_nodes;
         std::cout << "num_nodes = " << n << '\n';
@@ -413,9 +413,10 @@ public:
 
         IloModel model = createModel();
         IloCplex cplex(model);
-        cplex.setParam(IloCplex::Param::TimeLimit, param->getTimeLimit()); // Set a time limit if needed
+       
+        cplex.setParam(IloCplex::Param::TimeLimit, 10); // Set a time limit if needed
         cplex.setParam(IloCplex::Param::Threads, 1);
-        cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
+      //  cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
         cplex.setOut(env.getNullStream());
         
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -430,7 +431,77 @@ public:
                 sol.status = "Optimal";
                 std::cout << "optimal" << '\n';
                 std::cout << cplex.getObjValue() << '\n';
-                sol.obj = cplex.getObjValue();
+                sol.obj = cplex.getObjValue();\
+
+
+                std::vector<std::vector<int>> x_sol(n, std::vector<int>(n, 0));
+                for (int i : D)
+                {
+                    if (cplex.getValue(u[i]) >= 0.5)
+                        std::cout << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
+                }
+                std::cout << '\n';
+
+                for (int i : D) 
+                {
+                    if (cplex.getValue(e[i]) >= 0.5)
+                        std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
+                }
+                std::cout << '\n';
+
+                for (int i : Na)
+                {
+                    std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
+                }
+                float sum = cplex.getValue(T[0]);
+                std::cout << "sum = " << sum << "\n";
+                std::vector<int> tour;
+                int current = 0;   // start from point 0
+
+                for (int i : N0)
+                {
+                    for (int j : Ne)
+                    {
+                        if (i == j) continue;
+                        if (cplex.getValue(x[i][j]) >= 0.5)
+                        {
+                            //sum += time_truck[i][j];
+                            //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                            std::cout << i << " " << j << std::endl;
+                            x_sol[i][j] = 1;
+                        }
+
+                    }
+                }
+
+                tour.push_back(current);
+
+                while (true) {
+                    int next_point = -1;
+                    for (int j = 0; j < n; j++) {
+                        if (x_sol[current][j] == 1) {  // if there's a tour from current to j
+                            next_point = j;
+                            break;
+                        }
+                    }
+
+                    if (next_point == -1) break;  // no next point, end the tour
+
+                    tour.push_back(next_point);
+                    current = next_point;  // move to the next point
+
+                    if (current == n - 1) break;  // if we've reached the last point, stop
+                }
+
+                // Output the tour
+                std::cout << "Truck tour: ";
+                for (int node : tour) {
+                    if (node == n - 1)
+                        std::cout << 0 << " ";
+                    else
+                        std::cout << node << " ";
+                }
+                std::cout << std::endl;
                 /*for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
                 sol.obj = cplex.getObjValue();*/
