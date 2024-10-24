@@ -1,4 +1,4 @@
-﻿
+
 #include "Model.h"
 #include "Params.h"
 #include <algorithm>
@@ -54,7 +54,7 @@ public:
         freeCustomers0 = instance->freemode;
         freeCustomers0.insert(freeCustomers0.begin(), 0);
         freeCustomers0.pop_back();
-        
+
         for (int i : freeCustomers0)
         {
             std::cout << i << " ";

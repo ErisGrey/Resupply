@@ -17,6 +17,7 @@ typedef std::vector<std::tuple<int, int>> Sol2D;
 typedef std::vector<std::tuple<int, int, int>> Sol3D;
 class Pardo : public Model {
 private:
+    std::string insName;
     IloEnv env;
     NumVar2D x;
     NumVar2D r;
@@ -26,6 +27,8 @@ private:
     IloNumVarArray s;
     IloNumVarArray e;
     int n;
+    std::vector<std::vector<float>> time_truck;
+    std::vector<std::vector<float>> time_drone;
     std::vector<int> N;
     std::vector<int> D;
     std::vector<int> N0;
@@ -34,11 +37,30 @@ private:
     std::vector<int> De;
     std::vector<int> Na;
 public:
-    
+
     Pardo() {
         Instance* instance = Instance::getInstance();
         n = instance->num_nodes;
+        insName = instance->instanceName;
         std::cout << "num_nodes = " << n << '\n';
+        
+        time_drone.resize(n);
+        time_truck.resize(n);
+        for (int i = 0; i < n; i++)
+        {
+            time_drone[i].resize(n);
+            time_truck[i].resize(n);
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                time_truck[i][j] = instance->time_truck[i][j];
+                time_drone[i][j] = instance->time_drone[i][j];
+            }
+        }
+
         for (int i = 1; i < n - 1; i++)
         {
             N.push_back(i);
@@ -61,7 +83,7 @@ public:
         D0.push_back(0);
         De.push_back(n - 1);
 
-        /*std::cout << "N: ";
+        std::cout << "N: ";
         for (auto i : N)
             std::cout << i << " ";
         std::cout << '\n';
@@ -94,7 +116,7 @@ public:
         std::cout << "De: ";
         for (auto i : De)
             std::cout << i << " ";
-        std::cout << '\n';*/
+        std::cout << '\n';
 
         env = IloEnv();
         x = NumVar2D(env, n);
@@ -115,7 +137,7 @@ public:
             {
                 if (i == j)
                     continue;
-                name << "x." << i << "." << j ;
+                name << "x." << i << "." << j;
                 x[i][j] = IloNumVar(env, 0, 1, ILOINT, name.str().c_str());
                 name.str("");
             }
@@ -182,7 +204,7 @@ public:
     }
     IloModel createModel() {
         Instance* instance = Instance::getInstance();
-        Param* param = Param::getInstance();
+        //Param* param = Param::getInstance();
         IloModel model(env);
         IloExpr objExpr(env);
         objExpr += T[n - 1];
@@ -213,6 +235,7 @@ public:
                 sum_in += x[i][j];
             }
             model.add(sum_in == 1);
+            sum_in.end();
         }
 
         for (int i : N)
@@ -225,9 +248,11 @@ public:
                 sum_out += x[i][j];
             }
             model.add(sum_out == 1);
+            sum_out.end();
         }
-        
+
         //Drone routing consrtaints
+        //model.add(u[0] == 1);
         for (int i : D)
         {
             model.add(u[i] <= u[0]);
@@ -239,6 +264,7 @@ public:
             drin += r[0][j];
         }
         model.add(drin == u[0]);
+        drin.end();
 
         IloExpr drout(env);
         for (int i : D)
@@ -246,6 +272,7 @@ public:
             drout += r[i][n - 1];
         }
         model.add(drout == u[0]);
+        drout.end();
 
         for (int j : D)
         {
@@ -258,6 +285,7 @@ public:
             }
             model.add(sum_ru == u[j]);
             sum_ru.end();
+  
         }
 
         for (int i : D)
@@ -282,6 +310,7 @@ public:
                 sum_order += y[i][j] * 1; //1 is weight of order, all order have weight 1
             }
             model.add(sum_order <= instance->drone_capacity * u[i]);
+            sum_order.end();
         }
 
         //Constraint on loading the orders onto the truck
@@ -293,13 +322,16 @@ public:
                 load_order += y[i][j];
             }
             model.add(load_order == 1);
+            load_order.end();
         }
 
         double M = 99999;
         //Synchronization and timing constraints
         for (int j : N)
         {
-            model.add(T[j] >= instance->release_time[j] + std::min(instance->time_drone[0][j], instance->time_truck[0][j]));
+            float min = std::min(instance->time_drone[0][j], instance->time_truck[0][j]);
+            //std::cout << "min = " << min << '\n';
+            model.add(T[j] >= instance->release_time[j] + min);
         }
 
         for (int i : D0)
@@ -318,8 +350,11 @@ public:
             {
                 if (i == j)
                     continue;
-                if (isElementInVector(D, j))
+                if (isElementInVector(D, j)) {
+                    //std::cout << j << '\n';
                     continue;
+                }
+                    
                 model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - x[i][j]));
             }
         }
@@ -346,7 +381,7 @@ public:
                 if (i == j)
                     continue;
                 model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
-            }           
+            }
         }
 
         //Constraints on the start time of the truck route and drone ﬂights
@@ -402,38 +437,41 @@ public:
         }
 
         model.add(T[n - 1] >= sum_cost);
+        sum_cost.end();
         
-        std::cout << "done" << '\n';
         return model;
     }
 
     Solution run() override {
-        
+
         Param* param = Param::getInstance();
 
         IloModel model = createModel();
         IloCplex cplex(model);
-       
-        cplex.setParam(IloCplex::Param::TimeLimit, 10); // Set a time limit if needed
+        cplex.extract(model);
+        //cplex.setParam(IloCplex::Param::Parallel, 1);
         cplex.setParam(IloCplex::Param::Threads, 1);
-      //  cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
-        cplex.setOut(env.getNullStream());
-        
+        /*cplex.setParam(IloCplex::TiLim, 3600);
+        cplex.setParam(IloCplex::TreLim, 28000);
+        cplex.setParam(IloCplex::Param::MIP::Strategy::RINSHeur, 10);*/
+        //cplex.setParam(IloCplex::Param::TimeLimit, param->getTimeLimit()); // Set a time limit if needed
+        //cplex.setParam(IloCplex::Param::Threads, 1);
+        //cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
+        //cplex.setOut(env.getNullStream());
+
         auto start_time = std::chrono::high_resolution_clock::now();
         Solution sol;
-        std::cout << "have solve??" << '\n';
+        cplex.exportModel("lpex.lp");
         if (cplex.solve()) {
-            std::cout << "solve 0" << '\n';
+            sol.name = insName;
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
-            
+
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
-                std::cout << "optimal" << '\n';
+                
                 std::cout << cplex.getObjValue() << '\n';
-                sol.obj = cplex.getObjValue();\
-
-
+                sol.obj = cplex.getObjValue();
                 std::vector<std::vector<int>> x_sol(n, std::vector<int>(n, 0));
                 for (int i : D)
                 {
@@ -442,7 +480,7 @@ public:
                 }
                 std::cout << '\n';
 
-                for (int i : D) 
+                for (int i : D)
                 {
                     if (cplex.getValue(e[i]) >= 0.5)
                         std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
@@ -454,10 +492,9 @@ public:
                     std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
                 }
                 float sum = cplex.getValue(T[0]);
-                std::cout << "sum = " << sum << "\n";
                 std::vector<int> tour;
                 int current = 0;   // start from point 0
-
+                std::cout << "sum = " << sum << "\n";
                 for (int i : N0)
                 {
                     for (int j : Ne)
@@ -465,8 +502,8 @@ public:
                         if (i == j) continue;
                         if (cplex.getValue(x[i][j]) >= 0.5)
                         {
-                            //sum += time_truck[i][j];
-                            //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                            sum += time_truck[i][j];
+                            std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
                             std::cout << i << " " << j << std::endl;
                             x_sol[i][j] = 1;
                         }
@@ -502,30 +539,62 @@ public:
                         std::cout << node << " ";
                 }
                 std::cout << std::endl;
+               
+                std::cout << "Drone tour " << "\n";
+                for (int i : D0)
+                {
+                    for (int j : De)
+                    {
+                        if (i == j) continue;
+                        if (i == 0 && j == n - 1) continue;
+                        if (cplex.getValue(r[i][j]) >= 0.5)
+                        {
+                           
+                            //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                            std::cout << i << " " << j << std::endl;
+                           // x_sol[i][j] = 1;
+                        }
+
+                    }
+                }
+
+
+
+
+                std::cout << "sum = " << sum << "\n";
+                /*for (int i : Na)
+                {
+                    for (int j : Na)
+                    {
+                        std::cout << x_sol[i][j] << " ";
+                    }
+                    std::cout << '\n';
+                }*/
+
                 /*for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
                 sol.obj = cplex.getObjValue();*/
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
-                
+
                 sol.status = "Feasible";
                 for (int i = 0; i < s.getSize(); i++)
                     sol.st.push_back(cplex.getValue(s[i]));
                 sol.obj = cplex.getObjValue();
             }
             else {
-                
+
                 sol.status = "Infeasible";
                 sol.obj = -1;
             }
         }
         else {
-            
+
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
             sol.status = "NoSolution";
         }
-       
+
         return sol;
     }
 

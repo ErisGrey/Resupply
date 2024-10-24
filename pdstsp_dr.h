@@ -36,12 +36,28 @@ private:
     std::vector<int> D0;
     std::vector<int> De;
     std::vector<int> Na;
+    std::vector<std::vector<int>> time_truck;
+    std::string insName;
 public:
 
     PDSTSP_DR() {
         Instance* instance = Instance::getInstance();
+        insName = instance->instanceName;
         n = instance->num_nodes;
         std::cout << "num_nodes = " << n << '\n';
+        time_truck.resize(n);
+        for (int i = 0; i < n; i++)
+        {
+            time_truck[i].resize(n, 0);
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                time_truck[i][j] = instance->time_truck[i][j];
+            }
+        }
         for (int i = 1; i < n - 1; i++)
         {
             N.push_back(i);
@@ -172,7 +188,7 @@ public:
         for (int i : Na)
         {
             name << "T." << i;
-            T[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+            T[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
             name.str("");
         }
 
@@ -180,7 +196,7 @@ public:
         for (int i : D)
         {
             name << "s." << i;
-            s[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+            s[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
             name.str("");
         }
 
@@ -188,18 +204,18 @@ public:
         for (int i : D)
         {
             name << "e." << i;
-            e[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+            e[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
             name.str("");
         }
 
         //T_max
         name << "T_max";
-        T_max = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+        T_max = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
         name.str("");
 
         //Td
         name << "Td";
-        Td = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
+        Td = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
         name.str("");
 
     }
@@ -209,14 +225,24 @@ public:
         IloModel model(env);
 
         //Anh swuar chỗ này nhá anh :)))
-        
+
         IloExpr objExpr(env);
         objExpr += T_max;
         model.add(IloMinimize(env, objExpr));
 
+        
+
         //Makespan of whole tour
         model.add(T_max >= T[n - 1]);
         model.add(T_max >= Td);
+
+        //test
+        //model.add(z[1] == 0);
+        //model.add(u[2] == 1);
+        //model.add(T[0] == 10);
+
+
+
 
         //Truck routing contraints
         IloExpr sum_s(env);
@@ -231,7 +257,7 @@ public:
         {
             sum_e += x[j][n - 1];
         }
-        model.add(sum_e <= 1);
+        //model.add(sum_e <= 1);
 
         model.add(sum_s == sum_e);
 
@@ -244,7 +270,7 @@ public:
                     continue;
                 sum_in += x[i][j];
             }
-            
+
             IloExpr sum_out(env);
             for (int i : Ne)
             {
@@ -275,7 +301,7 @@ public:
         {
             drout += r[i][n - 1];
         }
-        model.add(drout == 1);
+        //model.add(drout == 1);
 
         model.add(drin == drout);
         drin.end();
@@ -344,9 +370,10 @@ public:
             model.add(sum_order <= instance->drone_capacity * u[i]);
             sum_order.end();
 
-            model.add((1 - z[i]) * 1 <= instance->drone_capacity);
+            //test
+            //model.add((1 - z[i]) * 1 <= instance->drone_capacity);
         }
-        double M = 9999;
+        double M = 500;
         //Constraint on loading the orders onto the truck
         for (int j : N)
         {
@@ -367,10 +394,10 @@ public:
                 load_order += y[j][i];
             }
 
-            model.add(load_order <= M * z[j]);
+            model.add(load_order <= (instance->num_nodes + 1) * z[j]);
         }
 
-        
+
         //Synchronization and timing constraints
         for (int j : N)
         {
@@ -420,7 +447,7 @@ public:
             {
                 if (i == j)
                     continue;
-                model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j]));
+                model.add(s[j] >= T[i] + instance->time_drone[0][i] - M * (1 - r[i][j])/* + instance->time_drone[0][i] * (1 - z[i])*/);
             }
         }
 
@@ -499,6 +526,14 @@ public:
             model.add(Td >= s[i] + 2 * instance->time_drone[0][i] + instance->delta * z[i] - M * (1 - r[i][n - 1]));
         }
 
+        IloExpr droneTime(env);
+        for (int i : D)
+        {
+            droneTime += 2 * instance->time_drone[0][i] * (1 - z[i]) + instance->delta * u[i];
+        }
+        model.add(Td >= droneTime);
+ 
+       
         std::cout << "done" << '\n';
         return model;
     }
@@ -506,49 +541,101 @@ public:
     Solution run() override {
 
         Param* param = Param::getInstance();
-
+     
         IloModel model = createModel();
         IloCplex cplex(model);
 
-        //cplex.setParam(IloCplex::Param::TimeLimit, 10); // Set a time limit if needed
+        //cplex.setParam(IloCplex::Param::TimeLimit, 200); // Set a time limit if needed
         cplex.setParam(IloCplex::Param::Threads, 1);
         //  cplex.setParam(IloCplex::Param::MIP::Tolerances::MIPGap, param->getGap());
         //cplex.setOut(env.getNullStream());
-
+        cplex.exportModel("lpex.lp");
         auto start_time = std::chrono::high_resolution_clock::now();
         Solution sol;
-        std::cout << "have solve??" << '\n';
+        
         if (cplex.solve()) {
-            std::cout << "solve 0" << '\n';
+           
             auto end_time = std::chrono::high_resolution_clock::now();
             sol.time = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
             std::cout << cplex.getObjValue() << '\n';
-            sol.obj = cplex.getObjValue(); \
-
+            sol.obj = cplex.getObjValue();
+            sol.name = insName;
 
             std::vector<std::vector<int>> x_sol(n, std::vector<int>(n, 0));
-             for (int i : D)
-             {
-                 if (cplex.getValue(u[i]) >= 0.5)
-                     std::cout << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
-             }
-             std::cout << '\n';
 
-             for (int i : D)
-             {
-                 if (cplex.getValue(e[i]) >= 0.5)
-                     std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
-             }
-             std::cout << '\n';
+            int order_drone_served = 0;
+            for (int i : N)
+            {
+                if (cplex.getValue(z[i]) >= 0.5)
+                {
+                    std::cout << "z[" << i << "] = " << cplex.getValue(z[i]) << std::endl;
+                }
+                   
+                else
+                    order_drone_served += 1;
+            }
+            std::cout << '\n';
 
-             for (int i : Na)
-             {
-                 std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
-             }
+            int order_resupply = 0;
+            int trip_resupply = 0;
+            int trip;
+            for (int i : D0)
+            {
+                trip = 0;
+                for (int j : N)
+                {
+                    if (cplex.getValue(y[i][j]) >= 0.5)
+                    {
+                        std::cout << "y[" << i << "][" << j << "] = " << cplex.getValue(y[i][j]) << '\n';
+                        if (i != 0) {
+                            order_resupply += 1;
+                            trip += 1;
+                        }
+                       
+                    }
+                }
+                if (trip >= 1)
+                    trip_resupply += 1;
+                trip = 0;
+            }
+
+            std::cout << "So don hang phuc vu boi drone: " << order_drone_served << std::endl;
+            std::cout << "So don hang resupply boi drone: " << order_resupply << std::endl;
+            std::cout << "So trip resupply boi drone: " << trip_resupply << std::endl;
+            sol.order_resupply = order_resupply;
+            sol.order_served = order_drone_served;
+            sol.trip_resupply = trip_resupply;
+
+            for (int i : D)
+            {
+                if (cplex.getValue(u[i]) >= 0.5)
+                    std::cout << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
+            }
+            std::cout << '\n';
+
+            for (int i : D)
+            {
+                if (cplex.getValue(e[i]) >= 0.5)
+                    std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
+            }
+            std::cout << '\n';
+
+            for (int i : Na)
+            {
+                std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
+            }
+
+            for (int i : D)
+            {
+                std::cout << "s[" << i << "] = " << cplex.getValue(s[i]) << std::endl;
+            }
+            std::cout << cplex.getValue(Td) << std::endl;
             float sum = cplex.getValue(T[0]);
             std::cout << "sum = " << sum << "\n";
             std::vector<int> tour;
             int current = 0;   // start from point 0
+
+           
 
             for (int i : N0)
             {
@@ -557,8 +644,8 @@ public:
                     if (i == j) continue;
                     if (cplex.getValue(x[i][j]) >= 0.5)
                     {
-                        //sum += time_truck[i][j];
-                        //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                        sum += time_truck[i][j];
+                        std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
                         std::cout << i << " " << j << std::endl;
                         x_sol[i][j] = 1;
                     }
@@ -600,31 +687,30 @@ public:
                 for (int j : De)
                 {
                     if (i == j) continue;
+                    if (i == 0 && j == n - 1) continue;
                     if (cplex.getValue(r[i][j]) >= 0.5)
                     {
-                        //sum += time_truck[i][j];
-                        //std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+                        sum += time_truck[i][j];
+                       // std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
                         std::cout << "r[" << i << "][" << j << "] = " << cplex.getValue(r[i][j]) << std::endl;
-                        
+
                     }
 
                 }
             }
+            
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
                 std::cout << "optimal" << '\n';
                 std::cout << cplex.getObjValue() << '\n';
                 sol.obj = cplex.getObjValue(); \
-
-
-                
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {
 
                 sol.status = "Feasible";
-               /* for (int i = 0; i < s.getSize(); i++)
-                    sol.st.push_back(cplex.getValue(s[i]));
-                sol.obj = cplex.getObjValue();*/
+                /* for (int i = 0; i < s.getSize(); i++)
+                     sol.st.push_back(cplex.getValue(s[i]));
+                 sol.obj = cplex.getObjValue();*/
             }
             else {
 

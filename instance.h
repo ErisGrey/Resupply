@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,16 +17,27 @@ struct Point {
 class Instance
 {
 protected:
-    Instance(const std::string input, const std::string param)
+    Instance(const std::string input, const std::string param, const std::string mode)
     {
-        read_input(input);
+        std::vector<std::string> path;
+        split(input, path, '/');
+        instanceName = path[path.size() - 1];
+        std::size_t dotPosition = instanceName.rfind('.');
+        if (dotPosition != std::string::npos) {
+            // Erase the part after the dot
+            instanceName = instanceName.substr(0, dotPosition);
+        }
+        std::cout << instanceName << std::endl;
+        read_input(input, mode);
         read_param_input(param);
         initialize();
+        
     }
     static Instance* singleton_;
     std::vector < Point > Points;
-    
+
 public:
+    std::string instanceName;
     int num_nodes;
     int v_truck;
     int v_drone;
@@ -43,49 +54,87 @@ public:
     std::vector<int> freemode;
     Instance(Instance& other) = delete;
     void operator=(const Instance&) = delete;
-    static Instance* getInstance(const std::string input, const std::string param);
+    static Instance* getInstance(const std::string input, const std::string param, const std::string ins_mode);
     template <class Container>
     void split(const std::string& str, Container& cont, char delim);
     int getNumNode() { return num_nodes; }
-    void read_input(const std::string input)
+    void read_input(const std::string input, const std::string mode)
     {
         std::ifstream myFile(input);
 
         if (!myFile.is_open())
             std::cerr << "File input is missing !!";
-
-        num_nodes = 0;
         std::string line;
         std::vector<std::string> numbers;
-
-        //skip header
-        std::getline(myFile, line);
-        //std::cout << line << '\n';
-
-        while (std::getline(myFile, line))
+        if (mode == "pardo")
         {
-            num_nodes++;
-            split(line, numbers, '\t');
-            /*for (auto i : numbers)
-            {
-                std::cout << i << " ";
-            }
-            std::cout << '\n';
-            std::cout << numbers.size() << '\n';*/
-            x.push_back(stof(numbers[1]));
-            y.push_back(stof(numbers[2]));
-            release_time.push_back(stoi(numbers[3]));
+            num_nodes = 0;
+            
 
+            //skip header
+            std::getline(myFile, line);
+            //std::cout << line << '\n';
+
+            while (std::getline(myFile, line))
+            {
+                num_nodes++;
+                split(line, numbers, '\t');
+                /*for (auto i : numbers)
+                {
+                    std::cout << i << " ";
+                }
+                std::cout << '\n';
+                std::cout << numbers.size() << '\n';*/
+                x.push_back(stof(numbers[1]));
+                y.push_back(stof(numbers[2]));
+                release_time.push_back(stoi(numbers[3]));
+
+            }
+
+            // depot n+1
+            x.push_back(x[0]);
+            y.push_back(y[0]);
+            release_time.push_back(release_time[0]);
+            num_nodes++;
+
+            std::cerr << x[0] << ' ' << y[0] << ' ' << release_time[0] << '\n';
+            std::cout << "num_node = " << num_nodes << '\n';
         }
 
-        // depot n+1
-        x.push_back(x[0]);
-        y.push_back(y[0]);
-        release_time.push_back(release_time[0]);
-        num_nodes++;
+        if (mode == "solomon")
+        {
+            getline(myFile, line);
+            split(line, numbers, ' ');
+            num_nodes = stoi(numbers[1]);
+           // std::cout << "num node = " << num_nodes << '\n';
+            
+            //skip header
+            getline(myFile, line);
+            getline(myFile, line);
+            getline(myFile, line);
+            getline(myFile, line);
 
-        std::cerr << x[0] << ' ' << y[0] << ' ' << release_time[0] << '\n';
-        std::cout << "num_node = " << num_nodes << '\n';
+            //read coordi and release date
+            for (int i = 0; i < num_nodes; i++)
+            {
+                getline(myFile, line);
+                //std::cout << line << '\n';
+                split(line, numbers, '\t');
+                x.push_back(stof(numbers[0]));
+                y.push_back(stof(numbers[1]));
+                release_time.push_back(stoi(numbers[6]));
+            }
+
+            //add depot n+1
+            num_nodes++;
+            x.push_back(x[0]);
+            y.push_back(y[0]);
+            release_time.push_back(release_time[0]);
+            
+            //std::cerr << x[11] << ' ' << y[11] << ' ' << release_time[11] << '\n';
+            //std::cout << "num_node = " << num_nodes << '\n';
+        }
+        
     }
     void read_param_input(const std::string param)
     {
@@ -97,11 +146,11 @@ public:
         std::string line;
         std::vector<std::string> numbers;
 
-        
+
         std::getline(myFile, line);
         split(line, numbers, ',');
         v_truck = stoi(numbers[1]);
-
+        
         std::getline(myFile, line);
         split(line, numbers, ',');
         v_drone = stoi(numbers[1]);
@@ -113,6 +162,8 @@ public:
         std::getline(myFile, line);
         split(line, numbers, ',');
         drone_capacity = stoi(numbers[1]);
+
+        //std::cout << "drone_capacity = " << drone_capacity << '\n';
     }
     void initialize()
     {
@@ -140,29 +191,29 @@ public:
                 dist_drone[i][j] = euc_d;
                 dist_truck[i][j] = man_d;
 
-                
-                time_drone[i][j] = (euc_d / v_drone) * 60; //unit minute
-                time_truck[i][j] = (man_d / v_truck) * 60; //unit minute
+
+                time_drone[i][j] = ((euc_d / v_drone) * 60); //unit minute
+                time_truck[i][j] = ((man_d / v_truck) * 60); //unit minute
             }
         }
 
-        //for (int i = 0; i < num_nodes; i++) {
-        //    for (int j = 0; j < num_nodes; j++) {
-        //        std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
+        for (int i = 0; i < num_nodes; i++) {
+            
+            std::cout << "time_drone[" << 0 << "][" << i << "] = " << time_drone[0][i] << '\n';
 
-        //        //            assert(time_drone[i][j] * 2 <= maxTdrone);
-        //        //            assert(time_truck[i][j] * 2 <= maxTtruck);
-        //    }
-        //}
+            //            assert(time_drone[i][j] * 2 <= maxTdrone);
+            //            assert(time_truck[i][j] * 2 <= maxTtruck);
+            
+        }
 
         truckonly = {};
         freemode = {};
         for (int i = 1; i < num_nodes - 1; ++i) {
-            if (time_drone[0][i] >= 45) 
+            if (time_drone[0][i] >= 45)
                 truckonly.push_back(i);
-            else 
+            else
                 freemode.push_back(i);
-            
+
         }
 
         for (auto i : truckonly)
@@ -197,10 +248,10 @@ public:
 
 
 Instance* Instance::singleton_ = nullptr;;
-Instance* Instance::getInstance(const std::string input = "", const std::string param = "")
+Instance* Instance::getInstance(const std::string input = "", const std::string param = "", const std::string mode = "")
 {
     if (singleton_ == nullptr) {
-        singleton_ = new Instance(input, param);
+        singleton_ = new Instance(input, param, mode);
     }
     return singleton_;
 }
