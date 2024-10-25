@@ -1,9 +1,9 @@
-#include "Instance.h"
-#include "Params.h"
-#include "runner.h"
-#include "pardo.h"
-#include "pdstsp.h"
-#include "pdstsp_dr.h"
+#include "../header/instance.h"
+#include "../header/params.h"
+#include "../header/runner.h"
+#include "../header/pardo.h"
+#include "../header/pdstsp.h"
+#include "../header/pdstsp_dr.h"
 int main(int argc, char* argv[]) {
     std::string instance_folder = "/home/orlab/repo/quy/conflict_job/set_K/";
     std::string model_name = "TIF";
@@ -16,12 +16,7 @@ int main(int argc, char* argv[]) {
     while (--argc) {
         argv++;
         std::string s(argv[0]);
-        /*if (s == "-model") {
-            model_name = std::string(argv[1]);
-        }
-        if (s == "-prob_id") {
-            prob_id = stoi(std::string(argv[1]));
-        } */
+
         if (s == "-instanceDir") {
             instance_folder = std::string(argv[1]);
         }

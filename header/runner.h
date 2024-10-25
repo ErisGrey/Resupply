@@ -1,6 +1,6 @@
 #pragma once
-#include "Model.h"
-#include "Params.h"
+#include "model.h"
+#include "params.h"
 #include "fstream"
 
 class Runner {

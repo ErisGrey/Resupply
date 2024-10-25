@@ -1,0 +1,57 @@
+# CMake build directories
+build/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+
+# Visual Studio files
+*.sln
+*.vcxproj
+*.vcxproj.user
+*.ncb
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.ipch/
+*.obj
+*.pch
+*.idb
+*.log
+*.tlog/
+*.bin
+*.exe
+*.dll
+*.pdb
+*.lib
+*.ilk
+*.manifest
+
+# Visual Studio Code files
+.vscode/
+.history/
+*.code-workspace
+
+# Other IDEs
+.idea/
+*.iml
+
+# Temporary files
+*.tmp
+*.temp
+*.orig
+*.bak
+*.swp
+*~ 
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Additional files to ignore
+*.out
+*.class
+*.o
+*.so
+*.a

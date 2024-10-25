@@ -1,7 +1,6 @@
 #pragma once
-#include "Instance.h"
+#include "instance.h"
 #include <chrono>
-#include <ilcplex/ilocplex.h>
 
 class Solution {
 public:

@@ -1,9 +1,10 @@
 ﻿#pragma once
-#include "Model.h"
-#include "Params.h"
+#include "model.h"
+#include "params.h"
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include <ilcplex/ilocplex.h>
 
 
 typedef IloArray<IloArray<IloNumVarArray>> NumVar3D;
