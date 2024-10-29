@@ -12,32 +12,27 @@ project(${MY_PROJECT_NAME})
 find_package(CPLEX REQUIRED)
 if(CPLEX_FOUND)
     include_directories(${CPLEX_INCLUDE_DIR})
-    link_directories(${CPLEX_LIBRARY})
 endif()
 
 if(CPLEX_CONCERT_FOUND)
     include_directories(${CPLEX_CONCERT_INCLUDE_DIR})
-    link_directories(${CPLEX_CONCERT_LIBRARY})
 endif()
 
 if(CPLEX_ILOCPLEX_FOUND)
     include_directories(${CPLEX_ILOCPLEX_INCLUDE_DIR})
-    link_directories(${CPLEX_ILOCPLEX_LIBRARY})
 endif()
 
 if(CPLEX_CP_FOUND)
     include_directories(${CPLEX_CP_INCLUDE_DIR})
-    link_directories(${CPLEX_CP_LIBRARY})
 endif()
 
-
-######## Complier message
+######## Compiler message
 message(STATUS "System: ${CMAKE_SYSTEM}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
 
 ######## Set output directories.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build//bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/lib)
 
@@ -51,22 +46,32 @@ if (COMPILER_SUPPORTS_CXX17)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
     endif ()
 else ()
-    message(STATUS "Fatal Error: Your compiler doesn't support c++17, please install it!")
+    message(FATAL_ERROR "Your compiler doesn't support C++17, please install it!")
 endif ()
+
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -march=native -flto=auto -ffat-lto-objects -funroll-loops -ffast-math -funsafe-math-optimizations -mtune=native -mavx -mavx2 -mfma")
 
-set( CommonLibs
+set(CommonLibs
         m
         pthread
         dl
 )
-######## find all the source files.
-file(GLOB HEADER_FILES header/*.h)
-file(GLOB SOURCE_FILES source/*.cpp)
+
+######## Find all the source files.
+file(GLOB HEADER_FILES "source/*.h" "cp/*.h" "milp/*.h" "heuristic/*.h")
+file(GLOB SOURCES_FILES "source/*.cpp" "cp/*.cpp" "milp/*.cpp" "heuristic/*.cpp")
 
 ######## Set executable file name, and add the source files for it.
-add_executable(${MY_PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
+add_executable(${MY_PROJECT_NAME} ${HEADER_FILES} ${SOURCES_FILES})
+
 ######## Add Dependency Library
-target_link_libraries(${MY_PROJECT_NAME} cplex-library cplex-concert ilocplex cplex-cp ${CommonLibs})
+target_link_libraries(${MY_PROJECT_NAME} 
+    ${CPLEX_LIBRARIES} 
+    ${CPLEX_CONCERT_LIBRARIES} 
+    ${CPLEX_ILOCPLEX_LIBRARIES} 
+    ${CPLEX_CP_LIBRARIES} 
+    ${CommonLibs}
+)
+
 ######## Add Optimization Flags
 target_compile_options(${MY_PROJECT_NAME} PRIVATE -O3)

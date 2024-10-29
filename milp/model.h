@@ -15,11 +15,9 @@ public:
     int bound;
     double time; //in second;
     std::string status; //no solution, feasible or optimal
-    std::string name;
     int order_resupply = 0;
     int trip_resupply = 0;
     int order_served = 0;
-    std::vector< int > st;
 };
 
 class Model {

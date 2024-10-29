@@ -1,5 +1,5 @@
 #pragma once
-#include "Model.h"
+#include "../header/Model.h"
 #include "Params.h"
 #include "fstream"
 
@@ -32,10 +32,6 @@ public:
         out << sol.trip_resupply << ',';
         out << sol.order_resupply << ',';
         out << sol.order_served << '\n';
-
-       /* std::cerr << sol.st.size() << '\n';
-        for (auto i : sol.st)
-            out << i << '\n';*/
 
        /* Param* param = Param::getInstance();
         std::ofstream log("C:/Users/admin/Downloads/Resupply_ins/Sol/run_log.csv", std::ios_base::app);
