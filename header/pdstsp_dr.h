@@ -1,10 +1,9 @@
 ﻿#pragma once
-#include "model.h"
-#include "params.h"
+#include "Model.h"
+#include "Params.h"
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
-#include <ilcplex/ilocplex.h>
 
 
 typedef IloArray<IloArray<IloNumVarArray>> NumVar3D;
@@ -189,7 +188,7 @@ public:
         for (int i : Na)
         {
             name << "T." << i;
-            T[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
+            T[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
             name.str("");
         }
 
@@ -197,7 +196,7 @@ public:
         for (int i : D)
         {
             name << "s." << i;
-            s[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
+            s[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
             name.str("");
         }
 
@@ -205,18 +204,18 @@ public:
         for (int i : D)
         {
             name << "e." << i;
-            e[i] = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
+            e[i] = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
             name.str("");
         }
 
         //T_max
         name << "T_max";
-        T_max = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
+        T_max = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
         name.str("");
 
         //Td
         name << "Td";
-        Td = IloNumVar(env, 0, IloInfinity, ILOINT, name.str().c_str());
+        Td = IloNumVar(env, 0, IloInfinity, ILOFLOAT, name.str().c_str());
         name.str("");
 
     }
@@ -411,7 +410,7 @@ public:
             {
                 if (i == j)
                     continue;
-                model.add(T[j] >= T[i] - M * (1 - y[i][j]));
+                model.add(T[j] >= T[i] + instance->time_truck[i][j] - M * (1 - y[i][j]));
             }
         }
 
@@ -439,7 +438,7 @@ public:
 
         for (int j : D)
         {
-            model.add(T[j] >= s[j] + (instance->time_drone[0][j] + instance->delta) * z[j] - M * (1 - u[j]));
+            model.add(T[j] >= s[j] + instance->time_drone[0][j] + instance->delta - M * (1 - u[j]));
         }
 
         for (int i : D)
@@ -530,7 +529,7 @@ public:
         IloExpr droneTime(env);
         for (int i : D)
         {
-            droneTime += 2 * instance->time_drone[0][i] * (1 - z[i]) + instance->delta * u[i];
+            droneTime += 2 * instance->time_drone[0][i] * (1 - z[i]) + (2 * instance->time_drone[0][i] + instance->delta) * u[i];
         }
         model.add(Td >= droneTime);
  
@@ -562,6 +561,9 @@ public:
             sol.obj = cplex.getObjValue();
             sol.name = insName;
 
+            std::ofstream out;
+            out.open("C:/Users/maiti/Downloads/TSPrd(time)/TSPrd(time)/Solomon/10/Sol/" + insName + "_sol_float.txt", std::ios_base::app);
+
             std::vector<std::vector<int>> x_sol(n, std::vector<int>(n, 0));
 
             int order_drone_served = 0;
@@ -569,13 +571,13 @@ public:
             {
                 if (cplex.getValue(z[i]) >= 0.5)
                 {
-                    std::cout << "z[" << i << "] = " << cplex.getValue(z[i]) << std::endl;
+                    out << "z[" << i << "] = " << cplex.getValue(z[i]) << std::endl;
                 }
                    
                 else
                     order_drone_served += 1;
             }
-            std::cout << '\n';
+            out << '\n';
 
             int order_resupply = 0;
             int trip_resupply = 0;
@@ -587,7 +589,7 @@ public:
                 {
                     if (cplex.getValue(y[i][j]) >= 0.5)
                     {
-                        std::cout << "y[" << i << "][" << j << "] = " << cplex.getValue(y[i][j]) << '\n';
+                        out << "y[" << i << "][" << j << "] = " << cplex.getValue(y[i][j]) << '\n';
                         if (i != 0) {
                             order_resupply += 1;
                             trip += 1;
@@ -600,9 +602,9 @@ public:
                 trip = 0;
             }
 
-            std::cout << "So don hang phuc vu boi drone: " << order_drone_served << std::endl;
-            std::cout << "So don hang resupply boi drone: " << order_resupply << std::endl;
-            std::cout << "So trip resupply boi drone: " << trip_resupply << std::endl;
+            out << "So don hang phuc vu boi drone: " << order_drone_served << std::endl;
+            out << "So don hang resupply boi drone: " << order_resupply << std::endl;
+            out << "So trip resupply boi drone: " << trip_resupply << std::endl;
             sol.order_resupply = order_resupply;
             sol.order_served = order_drone_served;
             sol.trip_resupply = trip_resupply;
@@ -610,29 +612,29 @@ public:
             for (int i : D)
             {
                 if (cplex.getValue(u[i]) >= 0.5)
-                    std::cout << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
+                    out << "u[" << i << "] = " << cplex.getValue(u[i]) << std::endl;
             }
-            std::cout << '\n';
+            out << '\n';
 
             for (int i : D)
             {
                 if (cplex.getValue(e[i]) >= 0.5)
-                    std::cout << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
+                    out << "e[" << i << "] = " << cplex.getValue(e[i]) << std::endl;
             }
-            std::cout << '\n';
+            out << '\n';
 
             for (int i : Na)
             {
-                std::cout << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
+                out << "T[" << i << "] = " << cplex.getValue(T[i]) << std::endl;
             }
 
             for (int i : D)
             {
-                std::cout << "s[" << i << "] = " << cplex.getValue(s[i]) << std::endl;
+                out << "s[" << i << "] = " << cplex.getValue(s[i]) << std::endl;
             }
-            std::cout << cplex.getValue(Td) << std::endl;
+            out << cplex.getValue(Td) << std::endl;
             float sum = cplex.getValue(T[0]);
-            std::cout << "sum = " << sum << "\n";
+            
             std::vector<int> tour;
             int current = 0;   // start from point 0
 
@@ -646,8 +648,8 @@ public:
                     if (cplex.getValue(x[i][j]) >= 0.5)
                     {
                         sum += time_truck[i][j];
-                        std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
-                        std::cout << i << " " << j << std::endl;
+                        out << "x[" << i << "][" << j << "] = " << cplex.getValue(x[i][j]) << '\n';
+                        out << i << " " << j << std::endl;
                         x_sol[i][j] = 1;
                     }
 
@@ -674,15 +676,15 @@ public:
             }
 
             // Output the tour
-            std::cout << "Truck tour: ";
+            out << "Truck tour: ";
             for (int node : tour) {
                 if (node == n - 1)
-                    std::cout << 0 << " ";
+                    out << 0 << " ";
                 else
-                    std::cout << node << " ";
+                    out << node << " ";
             }
-            std::cout << std::endl;
-            std::cout << "Drone tour: ";
+            out << std::endl;
+            out << "Drone tour: ";
             for (int i : D0)
             {
                 for (int j : De)
@@ -693,7 +695,7 @@ public:
                     {
                         sum += time_truck[i][j];
                        // std::cout << "time_truck[" << i << "][" << j << "] = " << time_truck[i][j] << '\n';
-                        std::cout << "r[" << i << "][" << j << "] = " << cplex.getValue(r[i][j]) << std::endl;
+                        out << "r[" << i << "][" << j << "] = " << cplex.getValue(r[i][j]) << std::endl;
 
                     }
 
@@ -702,8 +704,8 @@ public:
             
             if (cplex.getStatus() == IloAlgorithm::Optimal) {
                 sol.status = "Optimal";
-                std::cout << "optimal" << '\n';
-                std::cout << cplex.getObjValue() << '\n';
+                out << "optimal" << '\n';
+                out << cplex.getObjValue() << '\n';
                 sol.obj = cplex.getObjValue(); \
             }
             else if (cplex.getStatus() == IloAlgorithm::Feasible) {

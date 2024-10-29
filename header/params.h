@@ -16,7 +16,7 @@ protected:
     std::string instance_name_;
     int time_limit_;
     int prob_;
-    double horizon_rastio_;
+    double horizon_ratio_;
     double gap_;
 
 public:
